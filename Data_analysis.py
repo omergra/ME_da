@@ -1,16 +1,8 @@
-import pandas as p
 from sklearn.decomposition import FastICA
-import numpy as np
 import load_intan_rhd_format as intan
 from scipy.signal import firwin, lfilter, iirnotch
 from scipy import ndimage, signal
-import os
-from matplotlib import pyplot as plt
-import pandas as pd
-import math
-from matplotlib.ticker import MaxNLocator
 from aux_functions import *
-import datetime as dt
 
 class DataAnalysis:
 
@@ -20,7 +12,7 @@ class DataAnalysis:
             self.data_dict = intan.read_data(filename)
         except:
             print('Unvalid file \ path for *.rhd data')
-        [self.data_vec, self.time_sync, self.trigger_vector] = self.sync()
+        [self.data_vec, self.time_sync, self.trigger_vec tor] = self.sync()
         self.sample_rate = self.data_dict['frequency_parameters']['amplifier_sample_rate']
         self.filtered_data = self.filter_data()
         self.rms_data = self.apply_rms()
