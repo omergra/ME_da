@@ -2,7 +2,9 @@ from sklearn.decomposition import FastICA
 import load_intan_rhd_format as intan
 from scipy.signal import firwin, lfilter, iirnotch
 from scipy import ndimage, signal
-from aux_functions import *
+import numpy as np
+
+#from aux_functions import *
 
 class DataAnalysis:
 
@@ -12,7 +14,7 @@ class DataAnalysis:
             self.data_dict = intan.read_data(filename)
         except:
             print('Unvalid file \ path for *.rhd data')
-        [self.data_vec, self.time_sync, self.trigger_vec tor] = self.sync()
+        [self.data_vec, self.time_sync, self.trigger_vector] = self.sync()
         self.sample_rate = self.data_dict['frequency_parameters']['amplifier_sample_rate']
         self.filtered_data = self.filter_data()
         self.rms_data = self.apply_rms()
@@ -34,15 +36,25 @@ class DataAnalysis:
         return [data_vec ,time_sync-time_sync[0], trigger_vector]
         #save sample rate
 
-    def filter_data(self,num_time_samp=512, low_cut_frq=20, high_cut_frq=350, notch=True):
+    def filter_data(self, num_time_samp=512, low_cut_frq=20, high_cut_frq=250, notch=True):
 
         nyq = 0.5 * self.sample_rate
         bpf = firwin(num_time_samp, [low_cut_frq, high_cut_frq], nyq=nyq, pass_zero=False, scale=False)
         # change this
         if notch is True:
-            b, a = iirnotch(50/nyq, 30)
+            b, a = iirnotch(50/nyq, 50)
             filt_data = [lfilter(b, a, self.data_vec[i, :]) for i in range(0, 16)]
-            b, a = iirnotch(100 / nyq, 30)
+            b, a = iirnotch(100 / nyq, 50)
+            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            b, a = iirnotch(150 / nyq, 50)
+            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            b, a = iirnotch(200 / nyq, 50)
+            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            b, a = iirnotch(250 / nyq, 50)
+            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            b, a = iirnotch(300 / nyq, 50)
+            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            b, a = iirnotch(350 / nyq, 50)
             filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
         return [lfilter(bpf, 1, filt_data[i][:]) for i in range(0, 16)]
 

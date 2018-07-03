@@ -8,7 +8,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import xarray as xr
-from scipy import ndimage
+import scipy as sp
+import xrft
+
 
 def find_th(ds, type='filt'):
     th_per_subj = dict()
@@ -38,33 +40,54 @@ def segment_data(segmented :xr.DataArray, filt_size=1000, min_samp_size=300):
         all_ch = segmented.sel(subject=num).values
         sig_after_conv = [np.convolve(d, filt_size, mode='same') for d in all_ch]
         # labeling the different segmented areas
-        labels = [ndimage.label(row) for row in sig_after_conv]
+        labels = [sp.ndimage.label(row) for row in sig_after_conv]
         # finding the segments sizes
-        segment_sizes = [ndimage.sum(mask_row, labeled_row[0], index=range(1, labeled_row[1] + 1))
+        segment_sizes = [sp.ndimage.sum(mask_row, labeled_row[0], index=range(1, labeled_row[1] + 1))
                          for mask_row, labeled_row in zip(sig_after_conv, labels)]
         # keep only large enough segments, as defined by parameter minimal_sample_size
         relevant_segments = [segment_sizes_row >= min_samp_size for segment_sizes_row
                              in segment_sizes]
         # get slice objects
-        slices = [ndimage.find_objects(labels_row[0]) for labels_row
+        slices = [sp.ndimage.find_objects(labels_row[0]) for labels_row
                   in labels]
         # clear un-relevant slices
         slices = [np.array(slice_ch)[relevant_segments_ch] for slice_ch, relevant_segments_ch
                   in zip(slices, relevant_segments)]
     return all_sj
 
+def differential_channel(da, ch):
+    return da.sel(subject=[6, 10, 3, 5, 11]) - da.sel(electrode=15, subject=[6, 10, 3, 5, 11])
+
+def apply_rms(data, window_size=1000):
+
+    # creating the window
+    window = np.ones(shape=int(np.ceil(window_size)))/np.ceil(window_size)
+    # power
+    sqr_data = np.power(data, 2)
+    # return RMS
+    return np.sqrt(np.convolve(sqr_data, window, 'same'))
+
+def create_rms_data(data, electrode=11):
+    data_list=[]
+    a = differential_channel(data, electrode)
+    for sj in a.coords['subject'].values:
+        data_list.append(apply_rms(a.sel(subject=sj)))
+    return np.stack(data_list, axis=1)
+
+
+
 if __name__ == '__main__':
 
-    pth = 'D:\ExperimentME_data_set.nc'
+    #pth = 'F:\Data\Electrodes\MircoExpressions\ExperimentME_data_filt_comb.nc'
+    pth = 'F:\Data\Electrodes\MircoExpressions\ExperimentME_data_filt_comb.nc'
     ds = xr.open_dataset(pth)
-    a = find_th(ds, type='filt')
-    data_after_threshold = do_th(ds, a, type='filt')
-    segmented = xr.DataArray(data_after_threshold, dims=['subject', 'electrode', 'time'], coords={'subject': [int(i.split('J')[-1]) for i in get_subjects_coords(ds)] ,
-                                                                                      'electrode': [i for i in range(16)],
-                                                                                     'time': ds.coords['voltage'].values})
-    all_sj = segment_data(segmented)
-    segmented.to_netcdf()
-    #segmented.sel(electrode=slice(9,15)).plot.line(row='subject', col='electrode')
-    plt.show()
-    tst = ds.sel(type='filt', electrode=slice(1, 2), voltage=slice(100, 200))
+    #da = differential_channel(ds, 11)
 
+    time = ds.__xarray_dataarray_variable__.coords['time'].values
+    #rms_da = xr.DataArray(res, dims=('time', 'subject'), coords={'time': time})
+    #rms_da.plot.line(row='subject')
+    no_rms = differential_channel(ds.__xarray_dataarray_variable__, 11)
+    no_rms.plot.line(row='subject')
+    no_rms.plot.show()
+    plt.show()
+    #rms_da.to_netcdf(r'F:\Data\Electrodes\MircoExpressions\rms_1000.nc')
