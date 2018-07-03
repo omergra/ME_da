@@ -56,7 +56,7 @@ def segment_data(segmented :xr.DataArray, filt_size=1000, min_samp_size=300):
     return all_sj
 
 def differential_channel(da, ch):
-    return da.sel(subject=[6, 10, 3, 5, 11]) - da.sel(electrode=15, subject=[6, 10, 3, 5, 11])
+    return da - da.sel(electrode=ch)
 
 def apply_rms(data, window_size=1000):
 
@@ -67,13 +67,27 @@ def apply_rms(data, window_size=1000):
     # return RMS
     return np.sqrt(np.convolve(sqr_data, window, 'same'))
 
-def create_rms_data(data, electrode=11):
-    data_list=[]
-    a = differential_channel(data, electrode)
-    for sj in a.coords['subject'].values:
-        data_list.append(apply_rms(a.sel(subject=sj)))
+def create_rms_data(data):
+    data_list = []
+    for elec in data.coords['electrode'].values:
+        data_list.append(apply_rms(data.sel(electrode=elec)))
     return np.stack(data_list, axis=1)
 
+# test for one subject
+def data_analysis(da):
+    da_diff_1 = differential_channel(da.sel(subject=3, electrode=slice(8, 15)), 12)
+    da_diff_2 = differential_channel(da.sel(subject=3, electrode=slice(0, 7)), 5)
+    # data 1 diff will be the final DataArray
+    da_diff_1.combine_first(da_diff_2)
+    # rms data
+    rms_da = create_rms_data(da_diff_1)
+    # finding peaks
+    return rms_da
+
+def find_peaks(da, prominence=1.2, width=300):
+    # this function uses scipy find peaks to detect areas of interest
+    peaks = [sp.signal.find_peaks(rms_ch, prominence=prominence, width=width) for rms_ch in rms_data]
+    #self.peaks = [signal.find_peaks_cwt(rms_ch, widths=[300, 500, 1000], min_snr=1.2) for rms_ch in self.filtered_data]
 
 
 if __name__ == '__main__':
@@ -81,13 +95,9 @@ if __name__ == '__main__':
     #pth = 'F:\Data\Electrodes\MircoExpressions\ExperimentME_data_filt_comb.nc'
     pth = 'F:\Data\Electrodes\MircoExpressions\ExperimentME_data_filt_comb.nc'
     ds = xr.open_dataset(pth)
-    #da = differential_channel(ds, 11)
-
+    da = ds.__xarray_dataarray_variable__
+    rms_npa = data_analysis(da)
+    rms_da = xr.DataArray(rms_npa, dims=('time', 'electrode'))
     time = ds.__xarray_dataarray_variable__.coords['time'].values
-    #rms_da = xr.DataArray(res, dims=('time', 'subject'), coords={'time': time})
-    #rms_da.plot.line(row='subject')
-    no_rms = differential_channel(ds.__xarray_dataarray_variable__, 11)
-    no_rms.plot.line(row='subject')
-    no_rms.plot.show()
     plt.show()
     #rms_da.to_netcdf(r'F:\Data\Electrodes\MircoExpressions\rms_1000.nc')
