@@ -6,7 +6,6 @@ Created on Sun Jun 24 15:11:56 2018
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from netCDF4 import Dataset
 import xarray as xr
 import scipy as sp
 import scipy.signal as signal
@@ -83,29 +82,25 @@ def create_rms_data(data):
 # test for one subject
 def data_analysis(da):
     # create differential data
-    da_diff_1 = differential_channel(da.sel(subject=5, electrode=slice(8, 15)), 12)
-    da_diff_2 = differential_channel(da.sel(subject=5, electrode=slice(0, 7)), 5)
+    ##da_diff_1 = differential_channel(da.sel(subject=5, electrode=slice(8, 15)), 12)
+    ##da_diff_2 = differential_channel(da.sel(subject=5, electrode=slice(0, 7)), 5)
     # data 1 diff will be the final DataArray
-    comb_arr = da_diff_1.combine_first(da_diff_2)
+    ##comb_arr = da_diff_1.combine_first(da_diff_2)
     # removing mean
-    array_no_mean = (comb_arr.values.T-np.mean(comb_arr.values, axis=1)).T
+    ##array_no_mean = (comb_arr.values.T-np.mean(comb_arr.values, axis=1)).T
     # rectifying data
-    rectified = np.abs(array_no_mean)
-    comb_arr = xr.DataArray(rectified, dims=('electrode', 'time'))
+    rectified = abs(da)
+    #comb_arr = xr.DataArray(rectified, dims=('electrode', 'time'))
     # rms data
     #rms_da = create_rms_data(comb_arr)
     low_pass = 2/1500
     b2, a2 = sp.signal.butter(3, low_pass, btype='lowpass')
-    env = sp.signal.filtfilt(b2, a2, rectified)
+    env = sp.signal.filtfilt(b2, a2, rectified.values)
 
-    #sav_arr = apply_savgol(comb_arr)
-    # finding peaks
-    env_mf = match_filter(data=env, width=1000, sig=300)
-    find_peaks_cwt(env)
-    #peaks = find_peaks(env_mf)
-    #peaks = find_peaks_cwt(env)
+    #env_mf = match_filter(data=env, width=1000, sig=300)
+    #find_peaks_cwt(env)
 
-    return env, peaks, rectified, env_mf
+    return env, rectified
 
 def find_peaks(data, prominence=10, width=(500, 2000), height=5):
     # this function uses scipy find peaks to detect areas of interest
@@ -149,9 +144,6 @@ def get_peaks_data(peaks_dict, idx):
     width = peaks_dict['widths'][idx]
     return prom, width
 
-def remove_entery_in_dict():
-    pass
-
 def match_filter(data, width, sig):
 
     return [gaussian_filter(ch, sig, width) for ch in data]
@@ -168,25 +160,34 @@ def gaussian_filter(data, sig, width):
     filtered = np.roll(filtered, int(-np.floor(width/2)))
     return filtered
 
+def zscore(x, window):
+    # rolling window
+    x_rolling = x.rolling(time=window)
+    # compute average and std
+    s = x_rolling.std().fillna(0)
+    m = x_rolling.mean().fillna(0)
+    # returning the z-score on the window
+    return (x-m)/s, m, s
+
 
 if __name__ == '__main__':
 
     pth = 'F:\Data\Electrodes\MircoExpressions\ExperimentME_data_filt_comb.nc'
     ds = xr.open_dataset(pth)
     da = ds.__xarray_dataarray_variable__
-    output = data_analysis(da)
+    x = da.sel(subject=5, electrode=1)
+    output = data_analysis(x)
     env = output[0]
-    peaks = output[1]
-    rectified = output[2]
-    mf = output[3]
-    uni_list = unify_peaks(peaks)
-    #plt.plot(rectified[0])
-    plt.plot(env[0], 'b')
-    plt.plot(mf[0], 'g')
-    plt.plot(uni_list[0], env[0, uni_list[0]], 'r+')
-    dat_dict = {'Peak': uni_list[0], 'Prominence': uni_list[1], 'width': uni_list[2]}
-    dat = pd.DataFrame(dat_dict)
-    #dat.to_csv('subject_5.csv')
+    rectified = output[1]
+    env = xr.DataArray(env, dims=['time'], coords=da.coords.get('time').values)
+    output = zscore(env, window=6000)
+    z_score = output[0]
+    m = output[1]
+    s = output[2]
+    #
+    th_pos = m+2.8*s
+    #
+    th_pos.plot()
     plt.show()
 
-    gaussian_filter(rectified, 300)
+
