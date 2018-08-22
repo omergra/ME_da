@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import xarray as xr
 import scipy as sp
 import scipy.signal as signal
+import time
 import pandas as pd
 
 def find_th(ds, type='filt'):
@@ -80,26 +81,19 @@ def create_rms_data(data):
     return data_list
 
 # test for one subject
-def data_analysis(da):
+def data_analysis(da, window, init_th):
     # create differential data
-    ##da_diff_1 = differential_channel(da.sel(subject=5, electrode=slice(8, 15)), 12)
-    ##da_diff_2 = differential_channel(da.sel(subject=5, electrode=slice(0, 7)), 5)
-    # data 1 diff will be the final DataArray
-    ##comb_arr = da_diff_1.combine_first(da_diff_2)
-    # removing mean
-    ##array_no_mean = (comb_arr.values.T-np.mean(comb_arr.values, axis=1)).T
     # rectifying data
     rectified = abs(da)
-    #comb_arr = xr.DataArray(rectified, dims=('electrode', 'time'))
-    # rms data
-    #rms_da = create_rms_data(comb_arr)
     low_pass = 2/1500
     b2, a2 = sp.signal.butter(3, low_pass, btype='lowpass')
     env = sp.signal.filtfilt(b2, a2, rectified.values)
-
-    #env_mf = match_filter(data=env, width=1000, sig=300)
-    #find_peaks_cwt(env)
-
+    # returning to da
+    env = xr.DataArray(env, dims=['time'], coords={'time': da.coords['time'].values})
+    env_r = env.rolling(time=window)
+    bias = env_r.min().fillna(0)
+    env = env - bias
+    env[env < init_th] = 0
     return env, rectified
 
 def find_peaks(data, prominence=10, width=(500, 2000), height=5):
@@ -169,25 +163,33 @@ def zscore(x, window):
     # returning the z-score on the window
     return (x-m)/s, m, s
 
+def find_peaks_with_running_zscore(x, m, s, th, window):
+
+    data_arr = x.values
+    mean_arr = m.values
+    std_arr = s.values
+    binary = np.zeros(shape=mean_arr.shape, dtype=np.float16)
+    filt = data_arr.copy()
+    std = np.std(filt[0:win])
+    mean = np.mean(filt[0:win])
+    for ind, elem in enumerate(data_arr):
+        if elem - mean > th*std:
+            binary[ind] = 1
+            if window < ind < len(std_arr)-1:
+                filt[ind] = filt[ind-1]
+        std = np.std(filt[ind-window+1:ind])
+        mean = np.mean(filt[ind-window+1:ind])
+    return binary*10
+
+
+
 
 if __name__ == '__main__':
-
+    win = 100
     pth = 'F:\Data\Electrodes\MircoExpressions\ExperimentME_data_filt_comb.nc'
     ds = xr.open_dataset(pth)
     da = ds.__xarray_dataarray_variable__
-    x = da.sel(subject=5, electrode=1)
-    output = data_analysis(x)
-    env = output[0]
-    rectified = output[1]
-    env = xr.DataArray(env, dims=['time'], coords=da.coords.get('time').values)
-    output = zscore(env, window=6000)
-    z_score = output[0]
-    m = output[1]
-    s = output[2]
-    #
-    th_pos = m+2.8*s
-    #
-    th_pos.plot()
-    plt.show()
-
-
+    x = da.sel(subject=11)
+    values = x.values.astype(np.float16).T
+    df = pd.DataFrame(values)
+    df.to_csv('F:\Data\subject_11.csv')

@@ -1,6 +1,6 @@
 from sklearn.decomposition import FastICA
 import load_intan_rhd_format as intan
-from scipy.signal import firwin, lfilter, iirnotch
+from scipy.signal import firwin, lfilter, iirnotch, filtfilt
 from scipy import ndimage, signal
 import numpy as np
 
@@ -43,20 +43,20 @@ class DataAnalysis:
         # change this
         if notch is True:
             b, a = iirnotch(50/nyq, 50)
-            filt_data = [lfilter(b, a, self.data_vec[i, :]) for i in range(0, 16)]
+            filt_data = [filtfilt(b, a, self.data_vec[i, :]) for i in range(0, 16)]
             b, a = iirnotch(100 / nyq, 50)
-            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            filt_data = [filtfilt(b, a, filt_data[i][:]) for i in range(0, 16)]
             b, a = iirnotch(150 / nyq, 50)
-            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            filt_data = [filtfilt(b, a, filt_data[i][:]) for i in range(0, 16)]
             b, a = iirnotch(200 / nyq, 50)
-            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            filt_data = [filtfilt(b, a, filt_data[i][:]) for i in range(0, 16)]
             b, a = iirnotch(250 / nyq, 50)
-            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            filt_data = [filtfilt(b, a, filt_data[i][:]) for i in range(0, 16)]
             b, a = iirnotch(300 / nyq, 50)
-            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
+            filt_data = [filtfilt(b, a, filt_data[i][:]) for i in range(0, 16)]
             b, a = iirnotch(350 / nyq, 50)
-            filt_data = [lfilter(b, a, filt_data[i][:]) for i in range(0, 16)]
-        return [lfilter(bpf, 1, filt_data[i][:]) for i in range(0, 16)]
+            filt_data = [filtfilt(b, a, filt_data[i][:]) for i in range(0, 16)]
+        return [filtfilt(bpf, 1, filt_data[i][:]) for i in range(0, 16)]
 
     def apply_rms(self, window_size=40):
         # apply rms on the data
